@@ -31,7 +31,9 @@ Gatekeeper provides four key security and control features:
 go get github.com/4nkitd/gatekeeper
 ```
 
-## Quick Start (Standard Library `net/http`)
+## Quick Start Examples
+
+### Standard Library (`net/http`)
 
 ```go
 package main
@@ -42,35 +44,40 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/4nkitd/gatekeeper" // Use your actual module path
+	"github.com/4nkitd/gatekeeper"
+	"github.com/4nkitd/gatekeeper/store"
 )
 
 func main() {
 	// Configure Gatekeeper
 	gk, err := gatekeeper.New(gatekeeper.Config{
 		IPPolicy: &gatekeeper.IPPolicyConfig{
-			Mode:    gatekeeper.ModeBlacklist,
-			IPs:     []string{"1.2.3.4"}, // Block this specific IP
-			CIDRs:   []string{"5.6.0.0/16"}, // Block this CIDR range
+			Mode:  gatekeeper.ModeBlacklist,
+			IPs:   []string{"1.2.3.4"},         // Block this specific IP
+			CIDRs: []string{"192.168.100.0/24"}, // Block this CIDR range
 		},
 		UserAgentPolicy: &gatekeeper.UserAgentPolicyConfig{
 			Mode:     gatekeeper.ModeBlacklist,
-			Patterns: []string{`^EvilBot/.*`}, // Block User-Agents matching this regex
+			Patterns: []string{`^curl/.*`, `(?i)^.*bot.*$`}, // Block curl and bots
 		},
 		RateLimiter: &gatekeeper.RateLimiterConfig{
 			Requests: 60,
 			Period:   1 * time.Minute, // 60 requests per minute per IP
+			Store:    store.NewMemoryStore(5 * time.Minute),
 			Exceptions: &gatekeeper.RateLimiterExceptions{
-				IPWhitelist: []string{"127.0.0.1"}, // Localhost bypasses rate limiting
+				IPWhitelist:            []string{"127.0.0.1", "::1"}, // Localhost bypasses rate limiting
+				RouteWhitelistPatterns: []string{`^/health$`},         // Health endpoint exempt
 			},
 		},
 		ProfanityFilter: &gatekeeper.ProfanityFilterConfig{
-			BlockWords:       []string{"badword", "curse"},
-			AllowWords:       []string{"scunthorpe"}, // Example for context
+			BlockWords:       []string{"badword", "spam", "offensive"},
+			AllowWords:       []string{"scunthorpe"}, // Avoid false positives
 			CheckQueryParams: true,
+			CheckFormFields:  true,
 			CheckJSONBody:    true,
 		},
 		DefaultBlockStatusCode: http.StatusForbidden,
+		DefaultBlockMessage:    "Access denied by security policy",
 	})
 	if err != nil {
 		log.Fatalf("Failed to initialize Gatekeeper: %v", err)
@@ -84,16 +91,6 @@ func main() {
 	// Apply all configured Gatekeeper protections
 	protectedHandler := gk.Protect(myHandler)
 
-	// Or apply policies individually:
-	// handler := myHandler
-	// if gk.ConfiguredProfanityPolicy() { // Example of checking if a policy is configured
-	//     handler = gk.ProfanityPolicy(handler)
-	// }
-	// if gk.ConfiguredRateLimiter() {
-	//     handler = gk.RateLimit(handler)
-	// }
-	// ... and so on for IPPolicy and UserAgentPolicy
-
 	http.Handle("/", protectedHandler)
 
 	log.Println("Server starting on :8080...")
@@ -103,25 +100,146 @@ func main() {
 }
 ```
 
+### Echo Framework
+
+```go
+package main
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/4nkitd/gatekeeper"
+	"github.com/4nkitd/gatekeeper/store"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+)
+
+func main() {
+	e := echo.New()
+
+	// Configure Gatekeeper with comprehensive security
+	config := gatekeeper.Config{
+		IPPolicy: &gatekeeper.IPPolicyConfig{
+			Mode:  gatekeeper.ModeBlacklist,
+			IPs:   []string{"1.2.3.4", "5.6.7.8"},
+			CIDRs: []string{"192.168.100.0/24"},
+		},
+		UserAgentPolicy: &gatekeeper.UserAgentPolicyConfig{
+			Mode: gatekeeper.ModeBlacklist,
+			Exact: []string{"BadBot/1.0", "EvilScraper/2.0"},
+			Patterns: []string{
+				`^curl/.*`,               // Block curl
+				`(?i)^.*bot.*scanner.*$`, // Block bot scanners
+				`(?i)^.*scraper.*$`,      // Block scrapers
+			},
+		},
+		RateLimiter: &gatekeeper.RateLimiterConfig{
+			Requests: 60,
+			Period:   1 * time.Minute,
+			Store:    store.NewMemoryStore(5 * time.Minute),
+			Exceptions: &gatekeeper.RateLimiterExceptions{
+				IPWhitelist: []string{"127.0.0.1", "::1"},
+				RouteWhitelistPatterns: []string{
+					`^/health$`,   // Health checks
+					`^/metrics$`,  // Monitoring
+					`^/static/.*`, // Static assets
+				},
+			},
+		},
+		ProfanityFilter: &gatekeeper.ProfanityFilterConfig{
+			BlockWords:       []string{"badword", "spam", "offensive"},
+			CheckQueryParams: true,
+			CheckFormFields:  true,
+			CheckJSONBody:    true,
+		},
+		DefaultBlockStatusCode: http.StatusForbidden,
+		DefaultBlockMessage:    "Access denied by security policy",
+	}
+
+	// Apply Gatekeeper middleware
+	gk, err := gatekeeper.New(config)
+	if err != nil {
+		e.Logger.Fatal("Failed to initialize Gatekeeper: ", err)
+	}
+	e.Use(gk.EchoMiddleware())
+
+	// Add other Echo middleware
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+
+	// Define routes
+	e.GET("/", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": "Welcome! You passed all security checks.",
+		})
+	})
+
+	e.GET("/health", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]string{
+			"status": "healthy",
+		})
+	})
+
+	e.Logger.Fatal(e.Start(":8080"))
+}
+```
+
 ## Supported Frameworks
 
-Gatekeeper provides middleware adapters for popular Go web frameworks:
+Gatekeeper provides built-in middleware support for popular Go web frameworks:
 
-*   **`net/http`** (Standard Library): `func(http.Handler) http.Handler`
-*   **Gin**: `github.com/4nkitd/gatekeeper/adapter/ginadapter` provides `gin.HandlerFunc`
-    ```go
-    import "github.com/4nkitd/gatekeeper/adapter/ginadapter"
-    // ...
-    r.Use(ginadapter.IPPolicy(gk)) // gk is your *gatekeeper.Gatekeeper instance
-    r.Use(ginadapter.RateLimit(gk))
-    // Or apply all with a single adapter (if provided)
-    // r.Use(ginadapter.ProtectAll(gk))
-    ```
-*   **Echo**: `github.com/4nkitd/gatekeeper/adapter/echoadapter` provides `echo.MiddlewareFunc`
-*   **Fiber**: `github.com/4nkitd/gatekeeper/adapter/fiberadapter` provides `fiber.Handler`
-*   **Chi**: Compatible with standard `net/http` middleware.
+### Echo Framework (Built-in Support)
 
-See the `adapter/` directory and specific framework examples for detailed usage.
+Gatekeeper provides native Echo middleware support with two convenient methods:
+
+**Method 1: Create instance then use middleware**
+```go
+import (
+    "github.com/4nkitd/gatekeeper"
+    "github.com/labstack/echo/v4"
+)
+
+func main() {
+    e := echo.New()
+    
+    // Create Gatekeeper instance
+    gk, err := gatekeeper.New(config)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Apply middleware
+    e.Use(gk.EchoMiddleware())
+    
+    // Your routes...
+}
+```
+
+**Method 2: One-step creation**
+```go
+func main() {
+    e := echo.New()
+    
+    // Create and apply middleware in one step
+    middleware, err := gatekeeper.EchoMiddlewareFromConfig(config)
+    if err != nil {
+        log.Fatal(err)
+    }
+    e.Use(middleware)
+    
+    // Your routes...
+}
+```
+
+### Other Frameworks
+
+*   **`net/http`** (Standard Library): Use `gk.Protect(handler)` or individual policies
+*   **Gin**: Use `gk.Protect()` with Gin's `WrapH()` function
+*   **Fiber**: Use `gk.Protect()` with Fiber's `adaptor.HTTPHandler()`
+*   **Chi**: Compatible with standard `net/http` middleware using `gk.Protect()`
+
+For complete Echo example, see `example/echo.go` in the repository.
 
 ## Configuration Options
 
@@ -158,26 +276,26 @@ type Config struct {
 
 *   `Requests`: `int64` - Maximum number of requests allowed.
 *   `Period`: `time.Duration` - The time window for the request limit (e.g., `1 * time.Minute`).
-*   `Store`: `gatekeeper.RateLimiterStore` - Storage backend. Defaults to `store.NewMemoryStore()`. Implement this interface for custom stores (e.g., Redis).
-*   `LimitExceededMessage`: `string` (default "Too Many Requests").
-*   `LimitExceededStatusCode`: `int` (default `http.StatusTooManyRequests`).
+*   `Store`: `store.RateLimiterStore` - Storage backend. Defaults to `store.NewMemoryStore()` if not provided.
+*   `LimitExceededMessage`: `string` (defaults to "Rate limit exceeded. Please slow down!").
+*   `LimitExceededStatusCode`: `int` (defaults to `http.StatusTooManyRequests`).
 *   `Exceptions`: `*RateLimiterExceptions`
     *   `IPWhitelist`: `[]string` of IPs/CIDRs exempt from rate limiting.
-    *   `RouteWhitelistPatterns`: `[]string` of regex patterns for URL paths exempt from rate limiting.
+    *   `RouteWhitelistPatterns`: `[]string` of regex patterns for URL paths exempt from rate limiting (e.g., `^/health$`, `^/static/.*`).
 
 ### Profanity Filter (`ProfanityFilterConfig`)
 
 *   `BlockWords`: `[]string` of words/phrases to block (case-insensitive).
-*   `AllowWords`: `[]string` of words/phrases that, if matched as a `BlockWord`, should be allowed (e.g., if "hell" is blocked, "hello" might still trigger; "hell" could be in `AllowWords` if it's part of an acceptable compound word in your context, or the `BlockWords` should be more specific. The "Scunthorpe problem" can be tricky; `AllowWords` helps for exact `BlockWords` found within larger, acceptable strings if the `BlockWord` itself is allowed).
-*   `CheckQueryParams`: `bool` - Scan URL query parameters.
+*   `AllowWords`: `[]string` of words/phrases to explicitly allow, helping avoid false positives (e.g., "scunthorpe" problem).
+*   `CheckQueryParams`: `bool` - Scan URL query parameters for profanity.
 *   `CheckFormFields`: `bool` - Scan `application/x-www-form-urlencoded` and `multipart/form-data` fields.
-*   `CheckJSONBody`: `bool` - Scan JSON request bodies.
-*   `BlockedMessage`: `string` (default "Bad Request").
-*   `BlockedStatusCode`: `int` (default `http.StatusBadRequest`).
+*   `CheckJSONBody`: `bool` - Scan JSON request bodies for profanity.
+*   `BlockedMessage`: `string` (defaults to "Content contains inappropriate language").
+*   `BlockedStatusCode`: `int` (defaults to `http.StatusBadRequest`).
 
 ## Rate Limiter Store
 
-The rate limiter defaults to an in-memory store. For distributed systems, you'll want to implement the `RateLimiterStore` interface using a shared backend like Redis or Memcached.
+The rate limiter uses an in-memory store by default (`store.NewMemoryStore()`). For distributed systems, you can implement the `store.RateLimiterStore` interface using a shared backend like Redis or Memcached.
 
 ```go
 package store
@@ -188,26 +306,106 @@ type RateLimiterStore interface {
 }
 ```
 
+Example custom store implementation:
+```go
+// RedisStore implements RateLimiterStore using Redis
+type RedisStore struct {
+    client *redis.Client
+}
+
+func (r *RedisStore) Allow(key string, limit int64, window time.Duration) (bool, time.Duration, error) {
+    // Implement sliding window rate limiting using Redis
+    // Return whether request is allowed and retry-after duration
+}
+```
+
+## Advanced Usage
+
+### Individual Policy Application
+
+You can apply policies individually instead of using `gk.Protect()`:
+
+```go
+handler := myHandler
+if gk.ConfiguredIPPolicy() {
+    handler = gk.IPPolicy(handler)
+}
+if gk.ConfiguredUserAgentPolicy() {
+    handler = gk.UserAgentPolicy(handler)
+}
+if gk.ConfiguredRateLimiter() {
+    handler = gk.RateLimit(handler)
+}
+if gk.ConfiguredProfanityFilter() {
+    handler = gk.ProfanityPolicy(handler)
+}
+```
+
+### Framework Integration Examples
+
+**Gin Framework:**
+```go
+import "github.com/gin-gonic/gin"
+
+r := gin.Default()
+gk, _ := gatekeeper.New(config)
+r.Use(gin.WrapH(gk.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    // This will be called for each request that passes Gatekeeper
+}))))
+```
+
+**Fiber Framework:**
+```go
+import "github.com/gofiber/fiber/v2/middleware/adaptor"
+
+app := fiber.New()
+gk, _ := gatekeeper.New(config)
+app.Use(adaptor.HTTPMiddleware(gk.Protect))
+```
+
+### Testing Gatekeeper Policies
+
+```bash
+# Test User-Agent blocking
+curl -H "User-Agent: curl/7.68.0" http://localhost:8080/
+# Expected: Access denied by security policy
+
+# Test with allowed User-Agent
+curl -H "User-Agent: Chrome/91.0" http://localhost:8080/
+# Expected: Normal response
+
+# Test rate limiting (run multiple times quickly)
+for i in {1..70}; do curl -s http://localhost:8080/ >/dev/null; done
+curl http://localhost:8080/
+# Expected: Rate limit exceeded after 60 requests
+
+# Test profanity filter
+curl -X POST -d "message=badword" http://localhost:8080/api/submit
+# Expected: Content contains inappropriate language
+```
+
 ## Order of Middleware Execution
 
 When using `gk.Protect(handler)`, the middleware is applied in the following default order (from outermost to innermost):
 
-1.  IP Policy
-2.  User-Agent Policy
-3.  Rate Limiter
-4.  Profanity Filter
+1.  IP Policy - First line of defense, blocks malicious IPs
+2.  User-Agent Policy - Blocks bots and scrapers  
+3.  Rate Limiter - Prevents abuse and DDoS attacks
+4.  Profanity Filter - Content moderation (innermost, closest to your handler)
 
-You can also apply them individually in any order you prefer:
-
-```go
-handler = gk.IPPolicy(handler)
-handler = gk.UserAgentPolicy(handler)
-// ...etc.
-```
+This order ensures maximum security efficiency - cheaper checks (IP, User-Agent) happen before more expensive ones (rate limiting, content scanning).
 
 ## Logging
 
 Gatekeeper uses the standard `log` package by default, prefixed with `[Gatekeeper]`. You can provide your own `*log.Logger` instance in `gatekeeper.Config.Logger`.
+
+Example logs:
+```
+[Gatekeeper] Request blocked: GET /api/data from 1.2.3.4. Reason: IP address in blacklist
+[Gatekeeper] Request blocked: POST /submit from 10.0.0.1. Reason: User-Agent 'curl/7.68.0' matches blocked pattern
+[Gatekeeper] Request blocked: GET /api/data from 127.0.0.1. Reason: Rate limit exceeded (60 requests/minute)
+[Gatekeeper] Request blocked: POST /comment from 192.168.1.100. Reason: Profanity detected in request body
+```
 
 ## Contributing
 
