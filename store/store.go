@@ -2,8 +2,6 @@ package store
 
 import (
 	"time"
-
-	"github.com/4nkitd/gatekeeper/store/store"
 )
 
 // RateLimiterStore defines the interface for rate limiting storage.
@@ -18,9 +16,4 @@ type RateLimiterStore interface {
 	// Cleanup can be called periodically to remove stale entries.
 	// Not all stores might need this (e.g., Redis with TTL).
 	Cleanup()
-}
-
-// NewMemoryStore creates a new in-memory store.
-func NewMemoryStore(recordTTL time.Duration) RateLimiterStore {
-	return store.NewMemoryStore(recordTTL)
 }

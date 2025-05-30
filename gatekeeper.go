@@ -324,6 +324,28 @@ func (gk *Gatekeeper) parsedTrustedProxiesIfAvailable() []*net.IPNet {
 	return gk.parsedIPPolicy.parsedTrustedProxies
 }
 
+// Helper methods to check if policies are configured
+
+// ConfiguredIPPolicy returns true if IP policy is configured and active
+func (gk *Gatekeeper) ConfiguredIPPolicy() bool {
+	return gk.config.IPPolicy != nil && gk.parsedIPPolicy != nil
+}
+
+// ConfiguredUserAgentPolicy returns true if User-Agent policy is configured and active
+func (gk *Gatekeeper) ConfiguredUserAgentPolicy() bool {
+	return gk.config.UserAgentPolicy != nil && gk.parsedUserAgentPolicy != nil
+}
+
+// ConfiguredRateLimiter returns true if rate limiter is configured and active
+func (gk *Gatekeeper) ConfiguredRateLimiter() bool {
+	return gk.config.RateLimiter != nil
+}
+
+// ConfiguredProfanityFilter returns true if profanity filter is configured and active
+func (gk *Gatekeeper) ConfiguredProfanityFilter() bool {
+	return gk.config.ProfanityFilter != nil && gk.parsedProfanityFilter != nil
+}
+
 // TODO: Implement individual middleware methods:
 // UserAgentPolicy(next http.Handler) http.Handler
 // IPPolicy(next http.Handler) http.Handler
