@@ -10,26 +10,15 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 )
 
-// echoAdapter wraps gatekeeper middleware for Echo framework
-func echoAdapter(gatekeeperMiddleware func(http.Handler) http.Handler) echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			handler := gatekeeperMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				c.SetRequest(r)
-				next(c)
-			}))
-			handler.ServeHTTP(c.Response(), c.Request())
-			return nil
-		}
-	}
-}
+// Note: The echoAdapter function is no longer needed!
+// Gatekeeper now provides built-in Echo middleware support.
 
 func main() {
 	// Initialize Echo
 	e := echo.New()
 
 	// Configure Gatekeeper with comprehensive security policies
-	gk, err := gatekeeper.New(gatekeeper.Config{
+	config := gatekeeper.Config{
 		// IP Policy - Block specific malicious IPs and allow only trusted networks
 		IPPolicy: &gatekeeper.IPPolicyConfig{
 			Mode:  gatekeeper.ModeBlacklist,
@@ -102,25 +91,26 @@ func main() {
 		// Global settings
 		DefaultBlockStatusCode: http.StatusForbidden,
 		DefaultBlockMessage:    "Access denied by security policy",
-	})
-
-	if err != nil {
-		e.Logger.Fatal("Failed to initialize Gatekeeper:", err)
 	}
+
+	// Apply Gatekeeper middleware - Method 1: Create instance then get middleware
+	gk, err := gatekeeper.New(config)
+	if err != nil {
+		e.Logger.Fatal("Failed to initialize Gatekeeper: ", err)
+	}
+	e.Use(gk.EchoMiddleware())
+
+	// Alternative Method 2: One-step creation (commented out)
+	// gkMiddleware, err := gatekeeper.EchoMiddlewareFromConfig(config)
+	// if err != nil {
+	//     e.Logger.Fatal("Failed to initialize Gatekeeper: ", err)
+	// }
+	// e.Use(gkMiddleware)
 
 	// Add Echo's built-in middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
-
-	// Apply Gatekeeper middleware - Option 1: Apply all protections at once
-	e.Use(echoAdapter(gk.Protect))
-
-	// Alternative Option 2: Apply individual policies in custom order
-	// e.Use(echoAdapter(gk.IPPolicy))
-	// e.Use(echoAdapter(gk.UserAgentPolicy))
-	// e.Use(echoAdapter(gk.RateLimit))
-	// e.Use(echoAdapter(gk.ProfanityPolicy))
 
 	// Define routes with different protection levels
 
@@ -184,10 +174,10 @@ func main() {
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"message": "Admin area accessed successfully",
 			"policies": map[string]bool{
-				"ip_policy_active":         gk.ConfiguredIPPolicy(),
-				"user_agent_policy_active": gk.ConfiguredUserAgentPolicy(),
-				"rate_limiter_active":      gk.ConfiguredRateLimiter(),
-				"profanity_filter_active":  gk.ConfiguredProfanityFilter(),
+				"ip_policy_active":         config.IPPolicy != nil,
+				"user_agent_policy_active": config.UserAgentPolicy != nil,
+				"rate_limiter_active":      config.RateLimiter != nil,
+				"profanity_filter_active":  config.ProfanityFilter != nil,
 			},
 		})
 	})
@@ -224,10 +214,10 @@ func main() {
 			"security_policies": map[string]interface{}{
 				"gatekeeper_active": true,
 				"policies": map[string]bool{
-					"ip_filtering":         gk.ConfiguredIPPolicy(),
-					"user_agent_filtering": gk.ConfiguredUserAgentPolicy(),
-					"rate_limiting":        gk.ConfiguredRateLimiter(),
-					"profanity_filter":     gk.ConfiguredProfanityFilter(),
+					"ip_filtering":         config.IPPolicy != nil,
+					"user_agent_filtering": config.UserAgentPolicy != nil,
+					"rate_limiting":        config.RateLimiter != nil,
+					"profanity_filter":     config.ProfanityFilter != nil,
 				},
 			},
 		})
@@ -236,16 +226,16 @@ func main() {
 	// Start server
 	e.Logger.Info("🚀 Starting Echo server with Gatekeeper protection...")
 	e.Logger.Info("📊 Active policies:")
-	if gk.ConfiguredIPPolicy() {
+	if config.IPPolicy != nil {
 		e.Logger.Info("  ✅ IP Policy (Blacklist mode)")
 	}
-	if gk.ConfiguredUserAgentPolicy() {
+	if config.UserAgentPolicy != nil {
 		e.Logger.Info("  ✅ User-Agent Policy (Blacklist mode)")
 	}
-	if gk.ConfiguredRateLimiter() {
+	if config.RateLimiter != nil {
 		e.Logger.Info("  ✅ Rate Limiter (60 requests/minute)")
 	}
-	if gk.ConfiguredProfanityFilter() {
+	if config.ProfanityFilter != nil {
 		e.Logger.Info("  ✅ Profanity Filter")
 	}
 
