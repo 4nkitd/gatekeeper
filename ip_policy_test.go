@@ -170,8 +170,8 @@ func TestIPPolicy(t *testing.T) {
 			}
 
 			// Check if the policy was parsed as expected by New()
-			if gk.IPPolicy == nil && (len(tt.config.IPs) > 0 || len(tt.config.CIDRs) > 0) {
-				t.Fatalf("gk.IPPolicy is nil even though config was provided with rules")
+			if gk.parsedIPPolicy == nil && (len(tt.config.IPs) > 0 || len(tt.config.CIDRs) > 0) {
+				t.Fatalf("gk.parsedIPPolicy is nil even though config was provided with rules")
 			}
 
 			req := httptest.NewRequest("GET", "/", nil)
@@ -189,8 +189,8 @@ func TestIPPolicy(t *testing.T) {
 
 			if rr.Code != tt.expectedStatusCode {
 				clientIP := ""
-				// Attempt to get client IP for logging, handle potential nil gk.IPPolicy if New() failed as expected
-				if gk.IPPolicy != nil && gk.config.IPPolicy != nil && gk.config.IPPolicy.TrustProxyHeaders {
+				// Attempt to get client IP for logging, handle potential nil parsedIPPolicy if New() failed as expected
+				if gk.parsedIPPolicy != nil && gk.config.IPPolicy != nil && gk.config.IPPolicy.TrustProxyHeaders {
 					// Access TrustProxyHeaders from config and parsedTrustedProxies from the parsed policy
 					clientIP_IP, _ := utils.GetClientIPFromRequest(req, gk.config.IPPolicy.TrustProxyHeaders, gk.parsedIPPolicy.parsedTrustedProxies)
 					clientIP = clientIP_IP.String()

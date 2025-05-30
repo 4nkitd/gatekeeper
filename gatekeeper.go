@@ -159,7 +159,7 @@ func New(config Config) (*Gatekeeper, error) {
 			config.RateLimiter.LimitExceededMessage = config.DefaultBlockMessage
 		}
 		if config.RateLimiter.LimitExceededStatusCode == 0 {
-			config.RateLimiter.LimitExceededStatusCode = config.DefaultBlockStatusCode
+			config.RateLimiter.LimitExceededStatusCode = http.StatusTooManyRequests // Use proper default for rate limiter
 		}
 	}
 	if config.ProfanityFilter != nil {
@@ -167,7 +167,7 @@ func New(config Config) (*Gatekeeper, error) {
 			config.ProfanityFilter.BlockedMessage = config.DefaultBlockMessage
 		}
 		if config.ProfanityFilter.BlockedStatusCode == 0 {
-			config.ProfanityFilter.BlockedStatusCode = config.DefaultBlockStatusCode
+			config.ProfanityFilter.BlockedStatusCode = http.StatusBadRequest // Use proper default for profanity filter
 		}
 	}
 

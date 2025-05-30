@@ -179,12 +179,12 @@ func TestUserAgentPolicy(t *testing.T) {
 				}
 			}
 
-			// If UserAgentPolicyConfig is nil or has no rules, gk.UserAgentPolicy (the parsed version) might be nil.
+			// If UserAgentPolicyConfig is nil or has no rules, gk.parsedUserAgentPolicy might be nil.
 			// The UserAgentPolicy middleware method itself checks for nil gk.parsedUserAgentPolicy.
-			if gk.UserAgentPolicy == nil && (len(tt.config.Exact) > 0 || len(tt.config.Patterns) > 0) {
-				t.Fatalf("gk.UserAgentPolicy is nil even though config was provided with rules")
+			if gk.parsedUserAgentPolicy == nil && (len(tt.config.Exact) > 0 || len(tt.config.Patterns) > 0) {
+				t.Fatalf("gk.parsedUserAgentPolicy is nil even though config was provided with rules")
 			}
-			if gk.UserAgentPolicy != nil && len(tt.config.Exact) == 0 && len(tt.config.Patterns) == 0 && tt.config.Mode != "" {
+			if gk.parsedUserAgentPolicy != nil && len(tt.config.Exact) == 0 && len(tt.config.Patterns) == 0 && tt.config.Mode != "" {
 				// If a mode was set, but no rules, the policy should ideally be nil or effectively a no-op
 				// This depends on New()'s behavior. For now, let's assume New() might create a non-nil policy
 				// that correctly handles no rules.

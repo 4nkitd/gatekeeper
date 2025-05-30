@@ -128,16 +128,30 @@ func (gk *Gatekeeper) scanValuesForProfanity(values url.Values) bool {
 	for _, vals := range values {
 		for _, val := range vals {
 			lowerVal := strings.ToLower(val)
+
+			// First check if the entire value is in the allow list
+			if _, isAllowed := p.allowWordsSet[lowerVal]; isAllowed {
+				continue // Skip this value entirely if it's explicitly allowed
+			}
+
+			// Check if any allowed word contains the blocked word and is present in the value
 			for profaneWord := range p.blockWordsSet {
 				if strings.Contains(lowerVal, profaneWord) {
-					// Check if this specific profane word is in the allow list
-					// (e.g. "hell" in "hello" - if "hell" is blocked but "hello" allowed)
-					// This simple check might not be enough for "Scunthorpe" if "thorpe" is blocked.
-					// The current allowWordsSet is for *exact* profane words that are allowed in some context.
-					// For "Scunthorpe", "thorpe" would be blocked unless "thorpe" itself is in allowWordsSet.
-					// A more complex allow list would involve allowing full words containing blocked substrings.
-					// For now: if `profaneWord` is found, AND `profaneWord` is NOT in `allowWordsSet`, then it's a hit.
-					if _, isAllowed := p.allowWordsSet[profaneWord]; !isAllowed {
+					// Check if this specific profane word is explicitly allowed
+					if _, isDirectlyAllowed := p.allowWordsSet[profaneWord]; isDirectlyAllowed {
+						continue
+					}
+
+					// Check if any allowed word that contains this profane word is present in the value
+					isWordAllowed := false
+					for allowedWord := range p.allowWordsSet {
+						if strings.Contains(allowedWord, profaneWord) && strings.Contains(lowerVal, allowedWord) {
+							isWordAllowed = true
+							break
+						}
+					}
+
+					if !isWordAllowed {
 						gk.logger.Printf("Profanity found in value: '%s' (matched: '%s')", val, profaneWord)
 						return true
 					}
@@ -154,9 +168,30 @@ func (gk *Gatekeeper) scanJSONForProfanity(data interface{}) bool {
 	switch v := data.(type) {
 	case string:
 		lowerVal := strings.ToLower(v)
+
+		// First check if the entire string is in the allow list
+		if _, isAllowed := p.allowWordsSet[lowerVal]; isAllowed {
+			return false // Skip this string entirely if it's explicitly allowed
+		}
+
+		// Check for blocked words within the string
 		for profaneWord := range p.blockWordsSet {
 			if strings.Contains(lowerVal, profaneWord) {
-				if _, isAllowed := p.allowWordsSet[profaneWord]; !isAllowed {
+				// Check if this specific profane word is explicitly allowed
+				if _, isDirectlyAllowed := p.allowWordsSet[profaneWord]; isDirectlyAllowed {
+					continue
+				}
+
+				// Check if any allowed word that contains this profane word is present in the value
+				isWordAllowed := false
+				for allowedWord := range p.allowWordsSet {
+					if strings.Contains(allowedWord, profaneWord) && strings.Contains(lowerVal, allowedWord) {
+						isWordAllowed = true
+						break
+					}
+				}
+
+				if !isWordAllowed {
 					gk.logger.Printf("Profanity found in JSON string: '%s' (matched: '%s')", v, profaneWord)
 					return true
 				}
