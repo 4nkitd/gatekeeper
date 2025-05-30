@@ -65,6 +65,11 @@ func main() {
 			Mode:     gatekeeper.ModeBlacklist,
 			Patterns: []string{`^curl/.*`, `(?i)^.*bot.*$`}, // Block curl and bots
 		},
+		RefererPolicy: &gatekeeper.RefererPolicyConfig{
+			Mode: gatekeeper.ModeBlacklist,
+			Exact: []string{"http://malicious-site.com"},
+			Patterns: []string{`(?i).*evil\.com.*`, `^http://.*`}, // Block evil.com and non-HTTPS
+		},
 		RateLimiter: &gatekeeper.RateLimiterConfig{
 			Requests: 60,
 			Period:   1 * time.Minute, // 60 requests per minute per IP
