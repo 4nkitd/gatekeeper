@@ -1,0 +1,40 @@
+{
+  "ipPolicy": {
+    "mode": "BLACKLIST",
+    "ips": ["192.168.1.100", "10.0.0.50"],
+    "cidrs": ["172.16.0.0/16"],
+    "trustProxyHeaders": true,
+    "trustedProxies": ["127.0.0.1/32", "::1/128"]
+  },
+  "userAgentPolicy": {
+    "mode": "BLACKLIST",
+    "exact": ["BadBot/1.0", "EvilCrawler/2.0"],
+    "patterns": [".*bot.*", ".*crawler.*"]
+  },
+  "refererPolicy": {
+    "mode": "WHITELIST",
+    "exact": ["https://example.com", "https://www.example.com"],
+    "patterns": ["https://.*\\.example\\.com.*"]
+  },
+  "rateLimiter": {
+    "requests": 100,
+    "period": "1m",
+    "exceptions": {
+      "ipWhitelist": ["127.0.0.1"],
+      "routeWhitelistPatterns": ["/health", "/status"]
+    },
+    "limitExceededMessage": "Rate limit exceeded. Please try again later.",
+    "limitExceededStatusCode": 429
+  },
+  "profanityFilter": {
+    "blockWords": ["spam", "abuse", "badword"],
+    "allowWords": ["class", "assumption"],
+    "checkQueryParams": true,
+    "checkFormFields": true,
+    "checkJsonBody": true,
+    "blockedMessage": "Request contains inappropriate content",
+    "blockedStatusCode": 400
+  },
+  "defaultBlockStatusCode": 403,
+  "defaultBlockMessage": "Access Denied"
+}

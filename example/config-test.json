@@ -1,0 +1,39 @@
+{
+  "ipPolicy": {
+    "mode": "WHITELIST",
+    "ips": ["127.0.0.1", "::1"],
+    "cidrs": ["192.168.0.0/16", "10.0.0.0/8"],
+    "trustProxyHeaders": false
+  },
+  "userAgentPolicy": {
+    "mode": "WHITELIST",
+    "exact": [],
+    "patterns": [".*"]
+  },
+  "refererPolicy": {
+    "mode": "BLACKLIST",
+    "exact": [],
+    "patterns": []
+  },
+  "rateLimiter": {
+    "requests": 100,
+    "period": "1m",
+    "exceptions": {
+      "ipWhitelist": ["127.0.0.1", "::1"],
+      "routeWhitelistPatterns": ["/health", "/status", "/config-info"]
+    },
+    "limitExceededMessage": "Rate limit exceeded",
+    "limitExceededStatusCode": 429
+  },
+  "profanityFilter": {
+    "blockWords": ["spam", "badword"],
+    "allowWords": ["class"],
+    "checkQueryParams": true,
+    "checkFormFields": true,
+    "checkJsonBody": true,
+    "blockedMessage": "Content policy violation",
+    "blockedStatusCode": 400
+  },
+  "defaultBlockStatusCode": 403,
+  "defaultBlockMessage": "Access Denied"
+}

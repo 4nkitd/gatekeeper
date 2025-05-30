@@ -1,6 +1,7 @@
 package gatekeeper
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -69,6 +70,60 @@ type RateLimiterConfig struct {
 	LimitExceededMessage string `json:"limitExceededMessage,omitempty" yaml:"limitExceededMessage,omitempty"`
 	// HTTP status code to return when rate limited, defaults to http.StatusTooManyRequests
 	LimitExceededStatusCode int `json:"limitExceededStatusCode,omitempty" yaml:"limitExceededStatusCode,omitempty"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for RateLimiterConfig
+func (rlc *RateLimiterConfig) UnmarshalJSON(data []byte) error {
+	// Define a temporary struct with Period as string
+	type tempRateLimiterConfig struct {
+		Requests                int64                  `json:"requests"`
+		Period                  string                 `json:"period"`
+		Exceptions              *RateLimiterExceptions `json:"exceptions,omitempty"`
+		LimitExceededMessage    string                 `json:"limitExceededMessage,omitempty"`
+		LimitExceededStatusCode int                    `json:"limitExceededStatusCode,omitempty"`
+	}
+
+	var temp tempRateLimiterConfig
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Parse the period string
+	period, err := time.ParseDuration(temp.Period)
+	if err != nil {
+		return fmt.Errorf("invalid period format '%s': %w", temp.Period, err)
+	}
+
+	// Set the values
+	rlc.Requests = temp.Requests
+	rlc.Period = period
+	rlc.Exceptions = temp.Exceptions
+	rlc.LimitExceededMessage = temp.LimitExceededMessage
+	rlc.LimitExceededStatusCode = temp.LimitExceededStatusCode
+
+	return nil
+}
+
+// MarshalJSON implements custom JSON marshaling for RateLimiterConfig
+func (rlc RateLimiterConfig) MarshalJSON() ([]byte, error) {
+	// Define a temporary struct with Period as string
+	type tempRateLimiterConfig struct {
+		Requests                int64                  `json:"requests"`
+		Period                  string                 `json:"period"`
+		Exceptions              *RateLimiterExceptions `json:"exceptions,omitempty"`
+		LimitExceededMessage    string                 `json:"limitExceededMessage,omitempty"`
+		LimitExceededStatusCode int                    `json:"limitExceededStatusCode,omitempty"`
+	}
+
+	temp := tempRateLimiterConfig{
+		Requests:                rlc.Requests,
+		Period:                  rlc.Period.String(),
+		Exceptions:              rlc.Exceptions,
+		LimitExceededMessage:    rlc.LimitExceededMessage,
+		LimitExceededStatusCode: rlc.LimitExceededStatusCode,
+	}
+
+	return json.Marshal(temp)
 }
 
 // --- Profanity Filter ---
