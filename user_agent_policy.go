@@ -36,11 +36,8 @@ func newParsedUserAgentPolicy(config *UserAgentPolicyConfig) (*parsedUserAgentPo
 		// For User-Agents, case-insensitivity is often desired. Let's default to it for simplicity.
 		// If the pattern already includes case flags, regex.Compile will handle it.
 		// A common way to make a regex case-insensitive is to prefix with `(?i)`.
-		if !strings.HasPrefix(pattern, "(?i)") && !strings.HasPrefix(pattern, "(?-i)") {
-			// Let's reconsider forcing case-insensitivity. User-Agents can be case sensitive.
-			// The user should specify `(?i)` in their pattern if they want case-insensitivity.
-			// For `Exact` matches, we are doing ToLower. For patterns, let's leave it to the user.
-		}
+		// The user should specify `(?i)` in their pattern if they want case-insensitivity.
+		// For `Exact` matches, we are doing ToLower. For patterns, let's leave it to the user.
 		re, err := regexp.Compile(pattern)
 		if err != nil {
 			return nil, fmt.Errorf("invalid User-Agent pattern '%s': %w", pattern, err)

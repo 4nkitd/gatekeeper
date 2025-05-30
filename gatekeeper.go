@@ -26,10 +26,6 @@ type UserAgentPolicyConfig struct {
 	Mode     PolicyMode `json:"mode" yaml:"mode"`         // BLACKLIST or WHITELIST
 	Exact    []string   `json:"exact" yaml:"exact"`       // List of exact User-Agent strings
 	Patterns []string   `json:"patterns" yaml:"patterns"` // List of regex patterns for User-Agents
-
-	// Internal
-	compiledPatterns []*regexp.Regexp
-	exactSet         map[string]struct{}
 }
 
 // --- IP Policy ---
@@ -82,10 +78,6 @@ type ProfanityFilterConfig struct {
 	BlockedMessage string `json:"blockedMessage,omitempty" yaml:"blockedMessage,omitempty"`
 	// HTTP status code to return when profanity is detected, defaults to http.StatusBadRequest
 	BlockedStatusCode int `json:"blockedStatusCode,omitempty" yaml:"blockedStatusCode,omitempty"`
-
-	// Internal
-	blockWordsSet map[string]struct{}
-	allowWordsSet map[string]struct{}
 }
 
 // --- Main Config ---
