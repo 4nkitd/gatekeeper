@@ -47,6 +47,22 @@ func main() {
 			},
 		},
 
+		// Referer Policy - Control access based on HTTP Referer header
+		RefererPolicy: &gatekeeper.RefererPolicyConfig{
+			Mode: gatekeeper.ModeBlacklist,
+			Exact: []string{
+				"http://malicious-site.com",
+				"https://spam-domain.net",
+				"http://phishing-site.org",
+			},
+			Patterns: []string{
+				`(?i).*evil\.com.*`,  // Block any referer containing evil.com
+				`(?i).*phishing\..*`, // Block phishing domains
+				`(?i).*malware\..*`,  // Block malware-related domains
+				`^http://.*`,         // Block all non-HTTPS referers (force HTTPS)
+			},
+		},
+
 		// Rate Limiter - Protect against DDoS and brute force attacks
 		RateLimiter: &gatekeeper.RateLimiterConfig{
 			Requests: 60, // 60 requests per minute per IP
@@ -176,6 +192,7 @@ func main() {
 			"policies": map[string]bool{
 				"ip_policy_active":         config.IPPolicy != nil,
 				"user_agent_policy_active": config.UserAgentPolicy != nil,
+				"referer_policy_active":    config.RefererPolicy != nil,
 				"rate_limiter_active":      config.RateLimiter != nil,
 				"profanity_filter_active":  config.ProfanityFilter != nil,
 			},
@@ -216,6 +233,7 @@ func main() {
 				"policies": map[string]bool{
 					"ip_filtering":         config.IPPolicy != nil,
 					"user_agent_filtering": config.UserAgentPolicy != nil,
+					"referer_filtering":    config.RefererPolicy != nil,
 					"rate_limiting":        config.RateLimiter != nil,
 					"profanity_filter":     config.ProfanityFilter != nil,
 				},
@@ -231,6 +249,9 @@ func main() {
 	}
 	if config.UserAgentPolicy != nil {
 		e.Logger.Info("  ✅ User-Agent Policy (Blacklist mode)")
+	}
+	if config.RefererPolicy != nil {
+		e.Logger.Info("  ✅ Referer Policy (Blacklist mode)")
 	}
 	if config.RateLimiter != nil {
 		e.Logger.Info("  ✅ Rate Limiter (60 requests/minute)")

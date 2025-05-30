@@ -4,7 +4,7 @@ Gatekeeper is a flexible and performant Go middleware library designed to enhanc
 
 ## Features
 
-Gatekeeper provides four key security and control features:
+Gatekeeper provides five key security and control features:
 
 1.  **User-Agent Blacklisting/Whitelisting:**
     *   **Purpose:** Block or allow requests based on the `User-Agent` header.
@@ -14,13 +14,18 @@ Gatekeeper provides four key security and control features:
     *   **Purpose:** Control access based on client IP address.
     *   **Configuration:** Define lists of individual IP addresses or CIDR ranges. Operates in `BLACKLIST` or `WHITELIST` mode. Supports trusting `X-Forwarded-For` / `X-Real-IP` headers from configured trusted proxies.
 
-3.  **IP Address Rate Limiting (with Exceptions):**
+3.  **Referer Blacklisting/Whitelisting:**
+    *   **Purpose:** Control access based on the HTTP `Referer` header to prevent hotlinking, block malicious referrers, or enforce HTTPS.
+    *   **Configuration:** Define lists of exact Referer URLs or regular expression patterns. Operates in `BLACKLIST` (block if matched) or `WHITELIST` (allow only if matched) mode.
+    *   **Use Cases:** Block spam domains, enforce HTTPS-only referers, prevent hotlinking, block known phishing sites.
+
+4.  **IP Address Rate Limiting (with Exceptions):**
     *   **Purpose:** Prevent abuse and brute-force attacks by limiting request rates per IP.
     *   **Configuration:** Define requests per period (e.g., 100 requests/minute).
     *   **Storage:** Defaults to an in-memory store (suitable for single instances). Pluggable `RateLimiterStore` interface allows for custom backends (e.g., Redis, Memcached) for distributed environments.
     *   **Exceptions:** Whitelist specific IPs/CIDRs or URL route patterns to bypass or have different rate limits.
 
-4.  **Profanity Firewall (with Whitelisting):**
+5.  **Profanity Firewall (with Whitelisting):**
     *   **Purpose:** Filter requests containing undesirable language.
     *   **Configuration:** Define lists of profane words/phrases and a whitelist of words to ignore (e.g., "Scunthorpe").
     *   **Scope:** Can check query parameters, form data (urlencoded/multipart), and JSON request bodies.

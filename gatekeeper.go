@@ -28,6 +28,13 @@ type UserAgentPolicyConfig struct {
 	Patterns []string   `json:"patterns" yaml:"patterns"` // List of regex patterns for User-Agents
 }
 
+// --- Referer Policy ---
+type RefererPolicyConfig struct {
+	Mode     PolicyMode `json:"mode" yaml:"mode"`         // BLACKLIST or WHITELIST
+	Exact    []string   `json:"exact" yaml:"exact"`       // List of exact Referer strings
+	Patterns []string   `json:"patterns" yaml:"patterns"` // List of regex patterns for Referers
+}
+
 // --- IP Policy ---
 type IPPolicyConfig struct {
 	Mode              PolicyMode `json:"mode" yaml:"mode"`                           // BLACKLIST or WHITELIST
@@ -84,6 +91,7 @@ type ProfanityFilterConfig struct {
 type Config struct {
 	UserAgentPolicy *UserAgentPolicyConfig `json:"userAgentPolicy,omitempty" yaml:"userAgentPolicy,omitempty"`
 	IPPolicy        *IPPolicyConfig        `json:"ipPolicy,omitempty" yaml:"ipPolicy,omitempty"`
+	RefererPolicy   *RefererPolicyConfig   `json:"refererPolicy,omitempty" yaml:"refererPolicy,omitempty"`
 	RateLimiter     *RateLimiterConfig     `json:"rateLimiter,omitempty" yaml:"rateLimiter,omitempty"`
 	ProfanityFilter *ProfanityFilterConfig `json:"profanityFilter,omitempty" yaml:"profanityFilter,omitempty"`
 
@@ -101,6 +109,7 @@ type Gatekeeper struct {
 	// Pre-compiled/parsed versions of config options for performance
 	parsedUserAgentPolicy *parsedUserAgentPolicy
 	parsedIPPolicy        *parsedIPPolicy
+	parsedRefererPolicy   *parsedRefererPolicy
 	// Rate limiter store is already part of RateLimiterConfig
 	parsedProfanityFilter *parsedProfanityFilter
 	logger                *log.Logger
@@ -118,6 +127,12 @@ type parsedIPPolicy struct {
 	parsedIPs            map[string]struct{} // Storing string representation of net.IP for map key
 	parsedCIDRs          []*net.IPNet
 	parsedTrustedProxies []*net.IPNet
+}
+
+type parsedRefererPolicy struct {
+	config           *RefererPolicyConfig
+	compiledPatterns []*regexp.Regexp
+	exactSet         map[string]struct{}
 }
 
 type parsedProfanityFilter struct {
@@ -175,6 +190,13 @@ func New(config Config) (*Gatekeeper, error) {
 		gk.parsedIPPolicy, err = newParsedIPPolicy(config.IPPolicy)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse IP policy: %w", err)
+		}
+	}
+
+	if config.RefererPolicy != nil {
+		gk.parsedRefererPolicy, err = newParsedRefererPolicy(config.RefererPolicy)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse referer policy: %w", err)
 		}
 	}
 
@@ -260,7 +282,7 @@ func (gk *Gatekeeper) blockRequest(w http.ResponseWriter, r *http.Request, statu
 // --- Middleware Chaining ---
 
 // Protect wraps a http.Handler with all configured Gatekeeper policies in a sensible order.
-// Order: IP Policy -> User-Agent Policy -> Rate Limiter -> Profanity Filter
+// Order: IP Policy -> User-Agent Policy -> Referer Policy -> Rate Limiter -> Profanity Filter
 func (gk *Gatekeeper) Protect(next http.Handler) http.Handler {
 	handler := next
 	if gk.config.ProfanityFilter != nil && gk.parsedProfanityFilter != nil {
@@ -268,6 +290,9 @@ func (gk *Gatekeeper) Protect(next http.Handler) http.Handler {
 	}
 	if gk.config.RateLimiter != nil {
 		handler = gk.RateLimit(handler) // RateLimit middleware is in rate_limiter.go
+	}
+	if gk.config.RefererPolicy != nil && gk.parsedRefererPolicy != nil {
+		handler = gk.RefererPolicy(handler)
 	}
 	if gk.config.UserAgentPolicy != nil && gk.parsedUserAgentPolicy != nil {
 		handler = gk.UserAgentPolicy(handler)
@@ -336,6 +361,11 @@ func (gk *Gatekeeper) ConfiguredRateLimiter() bool {
 // ConfiguredProfanityFilter returns true if profanity filter is configured and active
 func (gk *Gatekeeper) ConfiguredProfanityFilter() bool {
 	return gk.config.ProfanityFilter != nil && gk.parsedProfanityFilter != nil
+}
+
+// ConfiguredRefererPolicy returns true if Referer policy is configured and active
+func (gk *Gatekeeper) ConfiguredRefererPolicy() bool {
+	return gk.config.RefererPolicy != nil && gk.parsedRefererPolicy != nil
 }
 
 // TODO: Implement individual middleware methods:
