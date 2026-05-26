@@ -249,7 +249,7 @@ func main() {
 *   **Fiber**: Use `gk.Protect()` with Fiber's `adaptor.HTTPHandler()`
 *   **Chi**: Compatible with standard `net/http` middleware using `gk.Protect()`
 
-For complete Echo example, see `example/echo.go` in the repository.
+For complete examples, see [`example/echo/`](example/echo/), [`example/echo-dynamic/`](example/echo-dynamic/), and [`example/config-watcher/`](example/config-watcher/) in the repository.
 
 ## Configuration Options
 
